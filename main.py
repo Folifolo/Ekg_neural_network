@@ -66,26 +66,26 @@ learning_rate = 0.01
 
 
 ae_filters = {
-"conv1": tf.Variable(tf.truncated_normal([200, 1, 10], stddev=0.1)),
+"conv1": tf.Variable(tf.truncated_normal([50, 1, 10], stddev=0.1)),
 "b_conv1": tf.Variable(tf.truncated_normal([10], stddev=0.1)),
-"conv2": tf.Variable(tf.truncated_normal([150,10,10], stddev=0.1)),
+"conv2": tf.Variable(tf.truncated_normal([30,10,10], stddev=0.1)),
 "b_conv2": tf.Variable(tf.truncated_normal([10], stddev=0.1)),
-"conv3": tf.Variable(tf.truncated_normal([50,10,5],stddev= 0.1)),
+"conv3": tf.Variable(tf.truncated_normal([20,10,5],stddev= 0.1)),
 "b_conv3": tf.Variable(tf.truncated_normal([5],stddev= 0.1)),
-"conv4": tf.Variable(tf.truncated_normal([30,5,5],stddev= 0.1)),
+"conv4": tf.Variable(tf.truncated_normal([10,5,5],stddev= 0.1)),
 "b_conv4": tf.Variable(tf.truncated_normal([5],stddev= 0.1)),
 "conv5": tf.Variable(tf.truncated_normal([5,10,10],stddev= 0.1)),
 "b_conv5": tf.Variable(tf.truncated_normal([10],stddev= 0.1)),
 
 "deconv1": tf.Variable(tf.truncated_normal([5,10,10], stddev=0.1)),
 "b_deconv1": tf.Variable(tf.truncated_normal([10], stddev=0.1)),
-"deconv2": tf.Variable(tf.truncated_normal([30, 5, 5], stddev=0.1)),
+"deconv2": tf.Variable(tf.truncated_normal([10, 5, 5], stddev=0.1)),
 "b_deconv2": tf.Variable(tf.truncated_normal([5], stddev=0.1)),
-"deconv3": tf.Variable(tf.truncated_normal([50,10,5], stddev=0.1)),
+"deconv3": tf.Variable(tf.truncated_normal([20,10,5], stddev=0.1)),
 "b_deconv3":tf.Variable(tf.truncated_normal([5], stddev=0.1)),
-"deconv4": tf.Variable(tf.truncated_normal([150, 10, 10], stddev=0.1)),
+"deconv4": tf.Variable(tf.truncated_normal([30, 10, 10], stddev=0.1)),
 "b_deconv4": tf.Variable(tf.truncated_normal([10], stddev=0.1)),
-"deconv5": tf.Variable(tf.truncated_normal([200,1,10], stddev=0.1)),
+"deconv5": tf.Variable(tf.truncated_normal([50,1,10], stddev=0.1)),
 "b_deconv5":tf.Variable(tf.truncated_normal([10],stddev=0.1)),
 
 }
@@ -94,12 +94,15 @@ ae_filters = {
 #############################################
 ##LAYERS
 #############################################
-x_1 = tf.nn.conv1d(x, ae_filters["conv1"], stride=2, padding="SAME",use_cudnn_on_gpu=True) + ae_filters["b_conv1"]
-x_1_relu = tf.nn.leaky_relu(x_1,alpha = 0.2)
-# x_2 = tf.nn.conv1d(x_1_relu, ae_filters["conv2"], stride=4, padding="SAME",use_cudnn_on_gpu=True) + ae_filters["b_conv2"]
-# x2_relu = tf.nn.leaky_relu(x_2,alpha = 0.2)
-# x_3 = tf.nn.conv1d(x2_relu, ae_filters["conv3"], stride=25, padding="SAME",use_cudnn_on_gpu=True) + ae_filters["b_conv3"]
-# x3_relu = tf.nn.leaky_relu(x_3,alpha = 0.2)
+x_1 = tf.nn.conv1d(x, ae_filters["conv1"], stride=1, padding="SAME",use_cudnn_on_gpu=True) + ae_filters["b_conv1"]
+x_1_mp = tf.layers.max_pooling1d(x_1,pool_size = 2,strides = 2,padding='SAME')
+x_1_relu = tf.nn.leaky_relu(x_1_mp,alpha = 0.2)
+x_2 = tf.nn.conv1d(x_1_relu, ae_filters["conv2"], stride=1, padding="SAME",use_cudnn_on_gpu=True) + ae_filters["b_conv2"]
+x_2_mp = tf.layers.max_pooling1d(x_2,pool_size = 21,strides = 21,padding='SAME')
+x2_relu = tf.nn.leaky_relu(x_2_mp,alpha = 0.2)
+x_3 = tf.nn.conv1d(x2_relu, ae_filters["conv3"], stride=1, padding="SAME",use_cudnn_on_gpu=True) + ae_filters["b_conv3"]
+x_3_mp = tf.layers.max_pooling1d(x_3,pool_size = 2,strides = 2,padding='SAME')
+x3_relu = tf.nn.leaky_relu(x_3_mp,alpha = 0.2)
 # x_4 = tf.nn.conv1d(x3_relu, ae_filters["conv4"], stride=1, padding="SAME",use_cudnn_on_gpu=True) + ae_filters["b_conv4"]
 # x4_relu = tf.nn.leaky_relu(x_4,alpha = 0.2)
 # x_5 = tf.nn.conv1d(x4_relu, ae_filters["conv5"], stride=1, padding="SAME",use_cudnn_on_gpu=True) + ae_filters["b_conv5"]
@@ -107,24 +110,24 @@ x_1_relu = tf.nn.leaky_relu(x_1,alpha = 0.2)
 
 
 
-x_dec1 = tf.contrib.nn.conv1d_transpose(x_1_relu, ae_filters["deconv5"], [batch_size,size_of_data,1], stride=2, padding="SAME") 
+x_dec1 = tf.contrib.nn.conv1d_transpose(x3_relu, ae_filters["deconv3"], [batch_size,120,10], stride=2, padding="SAME") 
 x_dec1_relu = tf.nn.leaky_relu(x_dec1,alpha = 0.2)
-# x_dec2 = tf.contrib.nn.conv1d_transpose(x_dec1_relu, ae_filters["deconv4"], [batch_size,2500,10], stride=4, padding="SAME") + ae_filters["b_deconv5"]
-# x_dec2_relu = tf.nn.leaky_relu(x_dec2,alpha = 0.2)
-# x_dec3 = tf.contrib.nn.conv1d_transpose(x_dec2_relu, ae_filters["deconv5"], [batch_size,size_of_data,1], stride=2, padding="SAME")
-# x_dec3_relu = tf.nn.leaky_relu(x_dec3,alpha = 0.2)
+x_dec2 = tf.contrib.nn.conv1d_transpose(x_dec1_relu, ae_filters["deconv4"], [batch_size,2500,10], stride=21, padding="SAME")
+x_dec2_relu = tf.nn.leaky_relu(x_dec2,alpha = 0.2)
+x_dec3 = tf.contrib.nn.conv1d_transpose(x_dec2_relu, ae_filters["deconv5"], [batch_size,size_of_data,1], stride=2, padding="SAME")
+x_dec3_relu = tf.nn.leaky_relu(x_dec3,alpha = 0.2)
 # x_dec4 = tf.contrib.nn.conv1d_transpose(x_dec3_relu, ae_filters["deconv5"], [batch_size,size_of_data,1], stride=1, padding="SAME")
 # x_dec4_relu = tf.nn.leaky_relu(x_dec4,alpha = 0.2)
 # x_dec5 = tf.contrib.nn.conv1d_transpose(x_dec4_relu, ae_filters["deconv5"], [batch_size,size_of_data,1], stride=1, padding="SAME")
 # x_dec5_relu = tf.nn.leaky_relu(x_dec5,alpha = 0.2)
 
-for i  in range(10):
+for i  in range(4):
 #################################################
 ##FUNC of ERROR
 ##################################################
-	size_of_mask = 100*i+1
+	size_of_mask = 100*i**2+1
 	mask,start_mask = Create_mask_static(200,size_of_mask,batch_size)
-	func_of_error = tf.reduce_mean(tf.square(x_dec1_relu -x)*mask)
+	func_of_error = tf.reduce_mean(tf.square(x_dec3_relu -x)*mask)
 	optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(func_of_error)
 
 	################################################
@@ -165,7 +168,7 @@ for i  in range(10):
 	data1 = next(MyGeteratorData(batch_size))
 	plt.subplot(3, 1, 1)
 	plt.plot(range(size_of_data), data1[0])
-	data_output = sess.run([x_dec1_relu], feed_dict={x_plac: data1})
+	data_output = sess.run([x_dec3_relu], feed_dict={x_plac: data1})
 	plt.subplot(3, 1, 2)
 	data_output = np.reshape(data_output, [batch_size, size_of_data])
 	plt.plot(range(size_of_data), data_output[0])
@@ -175,5 +178,5 @@ for i  in range(10):
 	plt.ylabel(r'$Error$', fontsize=15, horizontalalignment='right', y=1)
 	plt.plot(epox[2:-1], error[2:-1],"g", label = "Error")
 	plt.legend()
-	plt.savefig("ecg_photo/lol" +"_"+str(size_of_mask)+ ".png")
+	plt.savefig("ecg_photo/var" +"_"+str(size_of_mask)+ ".png")
 	plt.clf()
