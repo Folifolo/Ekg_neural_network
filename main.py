@@ -5,7 +5,6 @@ import random as rd
 import tensorflow as tf
 raw_dataset_path="ecg_data_200\\ecg_data_200.json" #файл с датасетом
 
-
 def Openf(link):
     # function for opening some json files
     f = open(link,'r')
@@ -62,30 +61,31 @@ batch_size = 1  # how many images to use together for training
 x_plac = tf.placeholder(tf.float32, [None, size_of_data])  # input data
 x = tf.reshape(x_plac, [-1,size_of_data,1])
 learning_rate = 0.01
+l2_rate = 1
 
 
 
 ae_filters = {
-"conv1": tf.Variable(tf.truncated_normal([50, 1, 10], stddev=0.1)),
+"conv1": tf.Variable(tf.truncated_normal([100, 1, 10], stddev=0.1)),
 "b_conv1": tf.Variable(tf.truncated_normal([10], stddev=0.1)),
-"conv2": tf.Variable(tf.truncated_normal([30,10,10], stddev=0.1)),
+"conv2": tf.Variable(tf.truncated_normal([80,10,10], stddev=0.1)),
 "b_conv2": tf.Variable(tf.truncated_normal([10], stddev=0.1)),
-"conv3": tf.Variable(tf.truncated_normal([20,10,5],stddev= 0.1)),
+"conv3": tf.Variable(tf.truncated_normal([50,10,5],stddev= 0.1)),
 "b_conv3": tf.Variable(tf.truncated_normal([5],stddev= 0.1)),
-"conv4": tf.Variable(tf.truncated_normal([10,5,5],stddev= 0.1)),
+"conv4": tf.Variable(tf.truncated_normal([100,5,5],stddev= 0.1)),
 "b_conv4": tf.Variable(tf.truncated_normal([5],stddev= 0.1)),
 "conv5": tf.Variable(tf.truncated_normal([5,10,10],stddev= 0.1)),
 "b_conv5": tf.Variable(tf.truncated_normal([10],stddev= 0.1)),
 
 "deconv1": tf.Variable(tf.truncated_normal([5,10,10], stddev=0.1)),
 "b_deconv1": tf.Variable(tf.truncated_normal([10], stddev=0.1)),
-"deconv2": tf.Variable(tf.truncated_normal([10, 5, 5], stddev=0.1)),
+"deconv2": tf.Variable(tf.truncated_normal([100, 5, 5], stddev=0.1)),
 "b_deconv2": tf.Variable(tf.truncated_normal([5], stddev=0.1)),
-"deconv3": tf.Variable(tf.truncated_normal([20,10,5], stddev=0.1)),
+"deconv3": tf.Variable(tf.truncated_normal([50,10,5], stddev=0.1)),
 "b_deconv3":tf.Variable(tf.truncated_normal([5], stddev=0.1)),
-"deconv4": tf.Variable(tf.truncated_normal([30, 10, 10], stddev=0.1)),
+"deconv4": tf.Variable(tf.truncated_normal([80, 10, 10], stddev=0.1)),
 "b_deconv4": tf.Variable(tf.truncated_normal([10], stddev=0.1)),
-"deconv5": tf.Variable(tf.truncated_normal([50,1,10], stddev=0.1)),
+"deconv5": tf.Variable(tf.truncated_normal([100,1,10], stddev=0.1)),
 "b_deconv5":tf.Variable(tf.truncated_normal([10],stddev=0.1)),
 
 }
@@ -110,9 +110,9 @@ x3_relu = tf.nn.leaky_relu(x_3_mp,alpha = 0.2)
 
 
 
-x_dec1 = tf.contrib.nn.conv1d_transpose(x3_relu, ae_filters["deconv3"], [batch_size,120,10], stride=2, padding="SAME") 
+x_dec1 = tf.contrib.nn.conv1d_transpose(x3_relu, ae_filters["deconv3"], [batch_size,120,10], stride=2, padding="SAME")
 x_dec1_relu = tf.nn.leaky_relu(x_dec1,alpha = 0.2)
-x_dec2 = tf.contrib.nn.conv1d_transpose(x_dec1_relu, ae_filters["deconv4"], [batch_size,2500,10], stride=21, padding="SAME")
+x_dec2 = tf.contrib.nn.conv1d_transpose(x2_relu, ae_filters["deconv4"], [batch_size,2500,10], stride=21, padding="SAME")
 x_dec2_relu = tf.nn.leaky_relu(x_dec2,alpha = 0.2)
 x_dec3 = tf.contrib.nn.conv1d_transpose(x_dec2_relu, ae_filters["deconv5"], [batch_size,size_of_data,1], stride=2, padding="SAME")
 x_dec3_relu = tf.nn.leaky_relu(x_dec3,alpha = 0.2)
@@ -120,14 +120,28 @@ x_dec3_relu = tf.nn.leaky_relu(x_dec3,alpha = 0.2)
 # x_dec4_relu = tf.nn.leaky_relu(x_dec4,alpha = 0.2)
 # x_dec5 = tf.contrib.nn.conv1d_transpose(x_dec4_relu, ae_filters["deconv5"], [batch_size,size_of_data,1], stride=1, padding="SAME")
 # x_dec5_relu = tf.nn.leaky_relu(x_dec5,alpha = 0.2)
+# Q = tf.gradients(x_dec3_relu,x_1)
+Grad1 = tf.gradients(x_dec3_relu,ae_filters["conv1"])
+Grad2 = tf.gradients(x_dec3_relu,ae_filters["conv2"])
+Grad3 = tf.gradients(x_dec3_relu,ae_filters["deconv4"])
+Grad4 = tf.gradients(x_dec3_relu,ae_filters["deconv5"])
 
-for i  in range(4):
+
+
+############################################
+##REGULARIZATION
+############################################
+
+vars   = tf.trainable_variables() 
+loss_l2 = tf.add_n([tf.nn.l2_loss(v) for v in vars])*l2_rate
+
+for i  in range(1):
 #################################################
 ##FUNC of ERROR
 ##################################################
-	size_of_mask = 100*i**2+1
+	size_of_mask = 801
 	mask,start_mask = Create_mask_static(200,size_of_mask,batch_size)
-	func_of_error = tf.reduce_mean(tf.square(x_dec3_relu -x)*mask)
+	func_of_error = tf.reduce_mean(tf.square(x_dec3_relu -x)*mask) + loss_l2
 	optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(func_of_error)
 
 	################################################
@@ -168,15 +182,32 @@ for i  in range(4):
 	data1 = next(MyGeteratorData(batch_size))
 	plt.subplot(3, 1, 1)
 	plt.plot(range(size_of_data), data1[0])
-	data_output = sess.run([x_dec3_relu], feed_dict={x_plac: data1})
+	data_output, gradients_output1, gradients_output2,gradients_output3,gradients_output4= sess.run([x_dec3_relu, Grad1,Grad2,Grad3,Grad4], feed_dict={x_plac: data1})
 	plt.subplot(3, 1, 2)
+	# print("data_output", np.shape(data_output))
 	data_output = np.reshape(data_output, [batch_size, size_of_data])
+
+	gradients_output_sorted = np.sort(np.abs(np.reshape(gradients_output1,[1000])))
+
+	gradients_output1 = np.mean(np.abs(np.reshape(gradients_output1,[100,10])))
+	gradients_output2 = np.mean(np.abs(np.reshape(gradients_output2,[80,10,10])))
+	gradients_output3 = np.mean(np.abs(np.reshape(gradients_output3, [80,10,10])))
+	gradients_output4 = np.mean(np.abs(np.reshape(gradients_output4, [100,10])))
+	# gradients_output3 = np.mean(np.abs(np.reshape(gradients_output3,[20,10,5])))
+
 	plt.plot(range(size_of_data), data_output[0])
 	plt.plot(range(start_mask,size_of_mask+start_mask), np.zeros(size_of_mask)-300,'ro',markersize = 3)
 	plt.subplot(3,1,3)
-	plt.xlabel(r'$epoch$', fontsize=15, horizontalalignment='right', x=1)
+	plt.xlabel(r'$epoch$', fontsize=15, horizontalalignment='right' , x=1)
 	plt.ylabel(r'$Error$', fontsize=15, horizontalalignment='right', y=1)
 	plt.plot(epox[2:-1], error[2:-1],"g", label = "Error")
 	plt.legend()
-	plt.savefig("ecg_photo/var" +"_"+str(size_of_mask)+ ".png")
+	plt.savefig("ecg_photo/vv" +"_"+str(size_of_mask)+ ".png")
 	plt.clf()
+	print("gradients_output1", gradients_output1)
+	print("gradients_output2", gradients_output2)
+	print("gradients_output3", gradients_output3)
+	print("gradients_output4", gradients_output4)
+	plt.figure(2)
+	plt.plot(range(1000),gradients_output_sorted[::-1])
+	plt.show()
