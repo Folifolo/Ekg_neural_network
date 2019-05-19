@@ -204,17 +204,19 @@ for i  in range(1):
 	##GET JAkobian
 	###########################################
 
+	J_Jak = np.zeros((1,100,10)) # the first fictive array for concatenate 
+	for i in range(50):
+		dfi_dx = tf.gradients(x_dec3_relu[0][i][0],ae_filters["conv1"])
+		J = np.reshape(sess.run([dfi_dx], feed_dict={x_plac: data1}),(1,100,10))
+		J_Jak = np.append(J_Jak,J, axis = 0)
+	print("Jakobian shape",np.shape(J_Jak))
+	print("Jakobian mean",np.mean(J_Jak))
 
-	for i in range(10):
-		zaluta = tf.gradients(x_dec3_relu[0][i][0],ae_filters["conv1"])
-		J = sess.run([zaluta], feed_dict={x_plac: data1})
-		print("Jakob_shape2",np.mean(J))
+
+
+
 	plt.subplot(3, 1, 2)
 	data_output = np.reshape(data_output, [batch_size, size_of_data])
-
-
-
-
 	plt.plot(range(size_of_data), data_output[0])
 	plt.plot(range(start_mask,size_of_mask+start_mask), np.zeros(size_of_mask)-300,'ro',markersize = 3)
 	plt.subplot(3,1,3)
