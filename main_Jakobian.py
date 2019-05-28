@@ -3,6 +3,7 @@ import numpy as np
 import json
 import random as rd
 import tensorflow as tf
+import tensorflow.contrib.slim as slim
 from tensorflow.python.ops.parallel_for.gradients import jacobian
 raw_dataset_path="ecg_data_200\\ecg_data_200.json" #файл с датасетом
 def Openf(link):
@@ -35,6 +36,19 @@ def Create_mask_static(start,size, batch_size):
 	RESULT = np.reshape(np.array(RES), (1,SIZE,1))
 	return (RESULT,start)
 
+def Graph_Jakobian(Jakobian):
+	# а - количество тензорных ядер
+	# b - размер маски 
+	# c - размер тензоного ядра
+	a,b,c = np.shape(Jakobian)
+	arr_y = []
+	for i in range(a):
+		res = 0
+		for j in range(b):
+			for k in range(c):
+				res +=abs(Jakobian[i][j][k])
+		arr_y.append(res)
+	return arr_y
 
 
 data = Openf(raw_dataset_path)
@@ -66,9 +80,9 @@ l2_rate = 1
 
 
 ae_filters = {
-"conv1": tf.Variable(tf.truncated_normal([100, 1, 10], stddev=0.1)),
+"conv1": tf.Variable(tf.truncated_normal([90, 1, 10], stddev=0.1)),
 "b_conv1": tf.Variable(tf.truncated_normal([10], stddev=0.1)),
-"conv2": tf.Variable(tf.truncated_normal([80,10,10], stddev=0.1)),
+"conv2": tf.Variable(tf.truncated_normal([150,10,10], stddev=0.1)),
 "b_conv2": tf.Variable(tf.truncated_normal([10], stddev=0.1)),
 "conv3": tf.Variable(tf.truncated_normal([50,10,5],stddev= 0.1)),
 "b_conv3": tf.Variable(tf.truncated_normal([5],stddev= 0.1)),
@@ -83,13 +97,12 @@ ae_filters = {
 "b_deconv2": tf.Variable(tf.truncated_normal([5], stddev=0.1)),
 "deconv3": tf.Variable(tf.truncated_normal([50,10,5], stddev=0.1)),
 "b_deconv3":tf.Variable(tf.truncated_normal([5], stddev=0.1)),
-"deconv4": tf.Variable(tf.truncated_normal([80, 10, 10], stddev=0.1)),
+"deconv4": tf.Variable(tf.truncated_normal([150, 10, 10], stddev=0.1)),
 "b_deconv4": tf.Variable(tf.truncated_normal([10], stddev=0.1)),
-"deconv5": tf.Variable(tf.truncated_normal([100,1,10], stddev=0.1)),
+"deconv5": tf.Variable(tf.truncated_normal([90,1,10], stddev=0.1)),
 "b_deconv5":tf.Variable(tf.truncated_normal([10],stddev=0.1)),
 
 }
-
 
 #############################################
 ##LAYERS
@@ -100,7 +113,7 @@ x1_relu = tf.nn.leaky_relu(x_1_mp,alpha = 0.2)
 # x_1_relu = tf.nn.sigmoid(x_1_mp)
 # x_1_relu = tf.keras.layers.LeakyReLU(x_1_mp)
 x_2 = tf.nn.conv1d(x1_relu, ae_filters["conv2"], stride=1, padding="SAME",use_cudnn_on_gpu=True) + ae_filters["b_conv2"]
-x_2_mp = tf.layers.max_pooling1d(x_2,pool_size = 21,strides = 21,padding='SAME')
+x_2_mp = tf.layers.max_pooling1d(x_2,pool_size = 35,strides = 35,padding='SAME')
 x2_relu = tf.nn.leaky_relu(x_2_mp,alpha = 0.2)
 # x2_relu = tf.keras.layers.LeakyReLU(x_2_mp,alpha = 0.2)
 x_3 = tf.nn.conv1d(x2_relu, ae_filters["conv3"], stride=1, padding="SAME",use_cudnn_on_gpu=True) + ae_filters["b_conv3"]
@@ -113,10 +126,10 @@ x3_relu = tf.nn.leaky_relu(x3_mp,alpha = 0.2)
 # x5_relu = tf.nn.leaky_relu(x_5,alpha = 0.2)
 
 
-x_dec1 = tf.contrib.nn.conv1d_transpose(x3_relu, ae_filters["deconv3"], [batch_size,120,10], stride=2, padding="SAME")
+x_dec1 = tf.contrib.nn.conv1d_transpose(x3_relu, ae_filters["deconv3"], [batch_size,72,10], stride=2, padding="SAME")
 x_dec1_relu = tf.nn.leaky_relu(x_dec1,alpha = 0.2)
 # x_dec1_relu = tf.keras.layers.LeakyReLU(x_dec1,alpha = 0.2)
-x_dec2 = tf.contrib.nn.conv1d_transpose(x_dec1_relu, ae_filters["deconv4"], [batch_size,2500,10], stride=21, padding="SAME")
+x_dec2 = tf.contrib.nn.conv1d_transpose(x_dec1_relu, ae_filters["deconv4"], [batch_size,2500,10], stride=35, padding="SAME")
 x_dec2_relu = tf.nn.leaky_relu(x_dec2,alpha = 0.2)
 # x_dec2_relu = tf.keras.layers.LeakyReLU(x_dec2,alpha = 0.2)
 x_dec3 = tf.contrib.nn.conv1d_transpose(x_dec2_relu, ae_filters["deconv5"], [batch_size,size_of_data,1], stride=2, padding="SAME")
@@ -130,11 +143,7 @@ x_dec3_relu = tf.nn.leaky_relu(x_dec3,alpha = 0.2)
 
 
 
-
-
-# J=Get_jacobian(x_dec3_relu,ae_filters["conv1"])
-
-J=tf.gradients(x_dec3_relu[0][0][0],ae_filters["conv1"])
+# J=tf.gradients(x_dec3_relu[0][0][0],ae_filters["conv1"])
 
 
 
@@ -149,8 +158,8 @@ for i  in range(1):
 #################################################
 ##FUNC of ERROR
 ##################################################
-	size_of_mask = 801
-	mask,start_mask = Create_mask_static(200,size_of_mask,batch_size)
+	size_of_mask = 400
+	mask,start_mask = Create_mask_static(560,size_of_mask,batch_size)
 	func_of_error = tf.reduce_mean(tf.square(x_dec3_relu -x)*mask) + loss_l2
 	optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(func_of_error)
 
@@ -164,13 +173,13 @@ for i  in range(1):
 	sess.run(init)
 	ae_filters_copy = sess.run(ae_filters.copy()) # copy for comparing
 	# defining batch size, number of epochs and learning rate
-	hm_epochs =100   # how many times to go through the entire dataset
+	hm_epochs =4500   # how many times to go through the entire dataset
 	count = 1 # total request in one epoch
 	epox = [-2,-1]
 	error = [100000000000,100000000]
 	N=0
 	# for epoch in range(hm_epochs):
-	while (abs(error[-1]-error[-2])>0.00001 and N<hm_epochs):
+	while (abs(error[-1]-error[-2])>0.000000000000001 and N<hm_epochs):
 		epoch_loss_current = 0    # initializing error as 0
 		for i in range(count):
 			epoch_x = next(MyGeteratorData(batch_size)) #epoch_x теперь должен содержать картинки
@@ -187,34 +196,21 @@ for i  in range(1):
 	# save_path = saver.save(sess, "AutoincoderSave3/model_autoincoderCNN.ckpt")
 	# print("Model saved in path: %s" % save_path)
 
+	def model_summary():
+		model_vars = tf.trainable_variables()
+		slim.model_analyzer.analyze_vars(model_vars, print_info=True)
+
 
 	#####################################
 	##VISUALIZATION
 	#####################################
+	model_summary()
+	print("___________________________________________________")
 
 	data1 = next(MyGeteratorData(batch_size))
 	plt.subplot(3, 1, 1)
 	plt.plot(range(size_of_data), data1[0])
 	data_output= sess.run([x_dec3_relu], feed_dict={x_plac: data1})
-
-
-
-
-	###########################################
-	##GET JAkobian
-	###########################################
-
-	J_Jak = np.zeros((1,100,10)) # the first fictive array for concatenate 
-	for i in range(50):
-		dfi_dx = tf.gradients(x_dec3_relu[0][i][0],ae_filters["conv1"])
-		J = np.reshape(sess.run([dfi_dx], feed_dict={x_plac: data1}),(1,100,10))
-		J_Jak = np.append(J_Jak,J, axis = 0)
-	print("Jakobian shape",np.shape(J_Jak))
-	print("Jakobian mean",np.mean(J_Jak))
-
-
-
-
 	plt.subplot(3, 1, 2)
 	data_output = np.reshape(data_output, [batch_size, size_of_data])
 	plt.plot(range(size_of_data), data_output[0])
@@ -227,3 +223,23 @@ for i  in range(1):
 	plt.savefig("ecg_photo/vv" +"_"+str(size_of_mask)+ ".png")
 	plt.show()
 	plt.clf()
+
+
+	###########################################
+	##GET Jakobian
+	###########################################
+
+	J_Jak = np.zeros((10,1,90)) # the first fictive array for concatenate 
+	for i in range(start_mask,start_mask+size_of_mask):
+		dfi_dx = tf.gradients(x_dec3_relu[0][i][0],ae_filters["conv1"])
+		J = sess.run([dfi_dx], feed_dict={x_plac: data1})
+		J = np.transpose(J[0][0])
+		J_Jak = np.append(J_Jak,J, axis = 1)
+		print(i-start_mask,"\t/",size_of_mask)
+	y_arr = Graph_Jakobian(Jakobian =J_Jak)
+	print("Y_ARR",y_arr)
+	plt.plot(range(1,11),y_arr)
+	plt.show()
+
+
+
