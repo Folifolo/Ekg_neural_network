@@ -50,6 +50,18 @@ def Graph_Jakobian(Jakobian):
 		arr_y.append(res)
 	return arr_y
 
+def Get_color_map(Jakobian,N):
+	# а - количество тензорных ядер
+	# b - размер маски 
+	# c - размер тензоного ядра
+	N-=1
+	a,b,c = np.shape(Jakobian)
+	arr_color = np.zeros(c)
+	for i in range(b):
+		arr_color+=abs(Jakobian[N][i][:])
+	return arr_color
+
+
 
 data = Openf(raw_dataset_path)
 Leads1= data["50519553"]["Leads"]
@@ -82,9 +94,9 @@ l2_rate = 1
 ae_filters = {
 "conv1": tf.Variable(tf.truncated_normal([90, 1, 10], stddev=0.1)),
 "b_conv1": tf.Variable(tf.truncated_normal([10], stddev=0.1)),
-"conv2": tf.Variable(tf.truncated_normal([150,10,10], stddev=0.1)),
+"conv2": tf.Variable(tf.truncated_normal([50,10,10], stddev=0.1)),
 "b_conv2": tf.Variable(tf.truncated_normal([10], stddev=0.1)),
-"conv3": tf.Variable(tf.truncated_normal([50,10,5],stddev= 0.1)),
+"conv3": tf.Variable(tf.truncated_normal([30,10,5],stddev= 0.1)),
 "b_conv3": tf.Variable(tf.truncated_normal([5],stddev= 0.1)),
 "conv4": tf.Variable(tf.truncated_normal([100,5,5],stddev= 0.1)),
 "b_conv4": tf.Variable(tf.truncated_normal([5],stddev= 0.1)),
@@ -95,9 +107,9 @@ ae_filters = {
 "b_deconv1": tf.Variable(tf.truncated_normal([10], stddev=0.1)),
 "deconv2": tf.Variable(tf.truncated_normal([100, 5, 5], stddev=0.1)),
 "b_deconv2": tf.Variable(tf.truncated_normal([5], stddev=0.1)),
-"deconv3": tf.Variable(tf.truncated_normal([50,10,5], stddev=0.1)),
+"deconv3": tf.Variable(tf.truncated_normal([30,10,5], stddev=0.1)),
 "b_deconv3":tf.Variable(tf.truncated_normal([5], stddev=0.1)),
-"deconv4": tf.Variable(tf.truncated_normal([150, 10, 10], stddev=0.1)),
+"deconv4": tf.Variable(tf.truncated_normal([50, 10, 10], stddev=0.1)),
 "b_deconv4": tf.Variable(tf.truncated_normal([10], stddev=0.1)),
 "deconv5": tf.Variable(tf.truncated_normal([90,1,10], stddev=0.1)),
 "b_deconv5":tf.Variable(tf.truncated_normal([10],stddev=0.1)),
@@ -113,7 +125,7 @@ x1_relu = tf.nn.leaky_relu(x_1_mp,alpha = 0.2)
 # x_1_relu = tf.nn.sigmoid(x_1_mp)
 # x_1_relu = tf.keras.layers.LeakyReLU(x_1_mp)
 x_2 = tf.nn.conv1d(x1_relu, ae_filters["conv2"], stride=1, padding="SAME",use_cudnn_on_gpu=True) + ae_filters["b_conv2"]
-x_2_mp = tf.layers.max_pooling1d(x_2,pool_size = 35,strides = 35,padding='SAME')
+x_2_mp = tf.layers.max_pooling1d(x_2,pool_size = 7,strides = 7,padding='SAME')
 x2_relu = tf.nn.leaky_relu(x_2_mp,alpha = 0.2)
 # x2_relu = tf.keras.layers.LeakyReLU(x_2_mp,alpha = 0.2)
 x_3 = tf.nn.conv1d(x2_relu, ae_filters["conv3"], stride=1, padding="SAME",use_cudnn_on_gpu=True) + ae_filters["b_conv3"]
@@ -126,10 +138,10 @@ x3_relu = tf.nn.leaky_relu(x3_mp,alpha = 0.2)
 # x5_relu = tf.nn.leaky_relu(x_5,alpha = 0.2)
 
 
-x_dec1 = tf.contrib.nn.conv1d_transpose(x3_relu, ae_filters["deconv3"], [batch_size,72,10], stride=2, padding="SAME")
+x_dec1 = tf.contrib.nn.conv1d_transpose(x3_relu, ae_filters["deconv3"], [batch_size,358,10], stride=2, padding="SAME")
 x_dec1_relu = tf.nn.leaky_relu(x_dec1,alpha = 0.2)
 # x_dec1_relu = tf.keras.layers.LeakyReLU(x_dec1,alpha = 0.2)
-x_dec2 = tf.contrib.nn.conv1d_transpose(x_dec1_relu, ae_filters["deconv4"], [batch_size,2500,10], stride=35, padding="SAME")
+x_dec2 = tf.contrib.nn.conv1d_transpose(x_dec1_relu, ae_filters["deconv4"], [batch_size,2500,10], stride =  7, padding="SAME")
 x_dec2_relu = tf.nn.leaky_relu(x_dec2,alpha = 0.2)
 # x_dec2_relu = tf.keras.layers.LeakyReLU(x_dec2,alpha = 0.2)
 x_dec3 = tf.contrib.nn.conv1d_transpose(x_dec2_relu, ae_filters["deconv5"], [batch_size,size_of_data,1], stride=2, padding="SAME")
@@ -210,7 +222,7 @@ for i  in range(1):
 	data1 = next(MyGeteratorData(batch_size))
 	plt.subplot(3, 1, 1)
 	plt.plot(range(size_of_data), data1[0])
-	data_output= sess.run([x_dec3_relu], feed_dict={x_plac: data1})
+	data_output,CONV_1= sess.run([x_dec3_relu,ae_filters["conv1"]], feed_dict={x_plac: data1})
 	plt.subplot(3, 1, 2)
 	data_output = np.reshape(data_output, [batch_size, size_of_data])
 	plt.plot(range(size_of_data), data_output[0])
@@ -224,7 +236,6 @@ for i  in range(1):
 	plt.show()
 	plt.clf()
 
-
 	###########################################
 	##GET Jakobian
 	###########################################
@@ -236,10 +247,46 @@ for i  in range(1):
 		J = np.transpose(J[0][0])
 		J_Jak = np.append(J_Jak,J, axis = 1)
 		print(i-start_mask,"\t/",size_of_mask)
-	y_arr = Graph_Jakobian(Jakobian =J_Jak)
-	print("Y_ARR",y_arr)
-	plt.plot(range(1,11),y_arr)
+	# y_arr = Graph_Jakobian(Jakobian =J_Jak)
+	# print("Y_ARR",y_arr)
+	# plt.plot(range(1,11),y_arr)
+	# plt.show()
+
+
+
+	###########################################
+	##		VISUALIZE		KERNEL 
+	###########################################
+	# plt.title('Kernel 1')
+	# plt.xlabel('Weight number', fontsize=14, color='black')
+	# plt.ylabel('Value', fontsize=14, color='black')
+	# CONV_1 = np.transpose(np.reshape(CONV_1,(90,10)))
+	# plt.plot(range(1,91),CONV_1[0],"r-o",label='Bad representation')
+	# plt.legend(loc='upper right')
+	# plt.show()
+
+	plt.title('Kernel 1')
+	plt.xlabel('Weight number', fontsize=14, color='black')
+	plt.ylabel('Value', fontsize=14, color='black')
+	CONV_1 = np.transpose(np.reshape(CONV_1,(90,10)))
+	plt.scatter(range(1,91),CONV_1[0],label='Bad representation',c= Get_color_map(J_Jak,1),cmap="Greys")
+	plt.legend(loc='upper right')
+	plt.colorbar()
 	plt.show()
 
 
 
+
+
+	# plt.title('Kernel 2')
+	# plt.xlabel('Weight number', fontsize=14, color='black')
+	# plt.ylabel('Value', fontsize=14, color='black')
+	# plt.plot(range(1,91),CONV_1[1],"r-o",label='Bad representation')
+	# plt.legend(loc='upper right')
+	# plt.show()
+	# plt.title('Kernel 10')
+	# plt.xlabel('Weight number', fontsize=14, color='black')
+	# plt.ylabel('Value', fontsize=14, color='black')
+	# plt.plot(range(1,91),CONV_1[9],"r-o",label='Bad representation')
+	# plt.legend(loc='upper right')
+	# plt.show()
