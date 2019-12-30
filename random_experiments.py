@@ -1,3 +1,4 @@
+from trajectories import get_trajectories, plot_them
 import numpy as np
 import tensorflow as tf
 
@@ -7,8 +8,8 @@ from utils import ECG_LEN
 if __name__ == "__main__":
     epochs = 4000
     start_mask = 200
-    end_mask = 4700
-    patients = ["50757660"]  # ,'50483780']
+    end_mask = 1100
+    patients = ["0"]  # ,'50483780']
 
     x_ph = tf.placeholder(tf.float32, [None, ECG_LEN])
 
@@ -32,4 +33,4 @@ if __name__ == "__main__":
                     result_table[iteration, 2] = error_inside
                     result_table[iteration, 3] = error_outside
 
-        np.savetxt('4100_'+str(patient) + '.csv', result_table, delimiter=';')
+        np.savetxt('900_' + str(patient) + '.csv', result_table, delimiter=';')
